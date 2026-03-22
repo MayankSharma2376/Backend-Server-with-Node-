@@ -1,117 +1,97 @@
 const http = require("http")
 const path = require("path")
 const fs = require("fs")
+const {logEvents, logger} = require("./middlewares/logEvent")
+const cors = require("cors")
+const corsOptions = require("./config/corsOption")
+const errorHandler = require("./middlewares/errorHandler")
+const verifyJWT = require("./middlewares/verifyJWT")
+const cookieParser = require("cookie-parser")
 
-const fsPromises = require("fs").promises
+const express = require("express")
 
-
-const logEvents = require("./logEvent")
-
-const EventEmitter = require("events")
-const { ht, fi } = require("date-fns/locale")
-
-
-class MyEmitter extends EventEmitter{}
-
-
-
-const myEmitter = new MyEmitter()
-
+const app = express();
 
 
 const PORT = process.env.PORT || 3500
 
 
-const serveFile = async(filePath, contentType, response)=>{
-    try{
-
-        const data = await fsPromises.readFile(filePath, "utf8")
-        response.writeHead(200, {"contentType": contentType})
-        response.end(data)
-    }catch(err){
-        console.log(err)
-        response.statusCode = 500
-        response.end("Internal Server Code")
-    }
-
-}
-
-const server = http.createServer((req, res)=>{
-    console.log(req.url, req.method)
-
-    const extension = path.extname(req.url)
-    let contentType;
-
-    switch(extension){
-        case ".css":
-            contentType = "text/css";
-            break
-
-        case ".js":
-            contentType = "text/javascript"
-            break
-
-        case ".json":
-            contentType = "application/json"
-            break
-        
-        case ".jpg":
-            contentType = "image/jpg"
-            break
-        
-        case ".png":
-            contentType = "image/png"
-            break
-        
-        default:
-            contentType = "text/html"
-
-    }
-
-
-    let filePath = contentType === "text/html" && req.url === "/"
-    ? path.join(__dirname, "views", "index.html") :
-    contentType === "text/html" && req.url.slice(-1) === "/"
-    ? path.join(__dirname, "views", req.url, "index.html")
-    : contentType === "text/html"
-    ? path.join(__dirname, "views", req.url)
-    : path.join(__dirname, req.url)
-
-    if(!extension && req.url.slice(-1) !== "/"){
-        filePath += ".html"
-    }
-
-    const fileExists = fs.existsSync(filePath)
-
-
-    if(fileExists){
-        serveFile(filePath, contentType, res)
-
-    }else{
-        switch(path.parse(filePath).base){
-            case "old-page-html":
-                res.writeHead(301, {"Location" : "/new-page.html"})
-                res.end()
-                break
-            
-
-            case "www-page-html":
-                res.writeHead(301, {"Location" : "/"})
-                res.end()
-                break;
-
-            default:
-                serveFile(path.join(__dirname, "views", "404.html"), "text/html", res)
-
-        }
-    }
-
-    
-})
+// Custom-Built Middlewares
+app.use(logger)
 
 
 
-server.listen(PORT, ()=>{
+// cross origin resource sharing
+app.use(cors(corsOptions))
+
+
+
+
+
+
+
+// Inbuilt Middlewares
+
+app.use(express.urlencoded({extended: false}))
+
+app.use(express.json())
+
+app.use(cookieParser())
+
+app.use(express.static(path.join(__dirname, "/public")))
+// app.use("/subdir", express.static(path.join(__dirname, "/public")))
+
+
+
+app.use("/", require("./routes/root"))
+app.use("/register", require("./routes/register"));
+app.use("/login", require("./routes/auth"));
+app.use("/refresh", require("./routes/refresh"));
+app.use("/logout", require("./routes/logout"));
+
+app.use(verifyJWT)
+app.use("/employees", require("./routes/api/employees"))
+
+
+
+// app.get("/", (req, res)=>{
+//     // res.sendFile("./views/404.html", {root: __dirname})
+//     res.sendFile(path.join(__dirname, "views", "index.html"))
+// })
+
+// app.get("/new_page.html", (req, res)=>{
+//     // res.sendFile("./views/404.html", {root: __dirname})
+//     res.sendFile(path.join(__dirname, "views", "new_page.html"))
+// })
+// app.get("/404.html", (req, res)=>{
+//     // res.sendFile("./views/404.html", {root: __dirname})
+//     // res.sendFile(path.join(__dirname, "views", "404.html"))
+//     res.redirect(301, "/new_page.html")
+// })
+
+// const one = (req, res, next)=>{
+//     console.log("One")
+//     next();
+// }
+
+
+// const two = (req, res, next)=>{
+//     console.log("Two")
+//     next();
+// }
+
+// const three = (req, res, next)=>{
+//     console.log("Three")
+//     res.send("Finished!")
+// }
+
+
+
+// app.get("/chain", [one, two, three])
+
+app.use(errorHandler)
+
+app.listen(PORT, ()=>{
     console.log(`Server is running on port ${PORT}`)
 })
 // myEmitter.on("log", (msg)=>{

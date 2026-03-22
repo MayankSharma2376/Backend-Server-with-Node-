@@ -9,11 +9,12 @@ const fsPromises = require("fs").promises
 const path = require("path")
 
 
+
 const logEvents = async(message)=>{
     const dateTime = `${format(new Date(), "yyyy-MM-dd\tHH:mm:ss")}`
     const logItem = `${dateTime}\t${uuid()}\t${message}\n`
    try{
-    const logDir = path.join(__dirname, "logs")
+    const logDir = path.join(__dirname, "..", "logs")
 
     if(!fs.existsSync(logDir)){
         await fsPromises.mkdir(logDir, {recursive: true})
@@ -29,7 +30,15 @@ const logEvents = async(message)=>{
    }
 }
 
-module.exports = logEvents
+
+const logger = (req, res, next)=>{
+    logEvents(`${req.method}\t${req.headers.origin}\t${req.url}`, "reqLog.txt")
+    console.log(`${req.method} ${req.path}`)
+    next()
+}
+
+
+module.exports = {logEvents, logger}
 
 // console.log(uuid())
 
